@@ -1,0 +1,42 @@
+version: "3"
+
+services:
+  app:
+    build: ./app
+    container_name: app
+    ports:
+      - 80:80
+    networks:
+      vnet:
+        aliases:
+          - app
+          - dvwa
+          - vuln
+          - vulnerable
+          - vulnerability
+  db:
+    image: mysql
+    container_name: db
+    environment:
+      - MYSQL_RANDOM_ROOT_PASSWORD=yes
+      - MYSQL_DATABASE=dvwa
+      - MYSQL_USER=dvwa
+      - MYSQL_PASSWORD=p@ssw0rd
+    ports:
+      - 3306:3306
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - mysql_config:/etc/mysql
+    networks:
+      vnet:
+        aliases:
+          - db
+          - database
+          - mysql
+
+volumes:
+  mysql_data:
+  mysql_config:
+
+networks:
+  vnet:
