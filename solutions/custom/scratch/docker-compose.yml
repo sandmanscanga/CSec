@@ -6,6 +6,8 @@ services:
     container_name: web
     environment:
       - TERM=xterm-256color
+      - DEBIAN_FRONTEND=noninteractive
+      - DEBCONF_NONINTERACTIVE_SEEN=true
     ports:
       - 80:80
     depends_on:

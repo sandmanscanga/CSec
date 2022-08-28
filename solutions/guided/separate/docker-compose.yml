@@ -1,0 +1,38 @@
+version: "3"
+
+services:
+  web:
+    container_name: web
+    build: ./web
+    depends_on:
+      - db
+    ports:
+      - 80:80
+    networks:
+      my-network:
+        aliases:
+          - web
+          - website
+          - apache
+          - http
+          - app
+  db:
+    container_name: db
+    image: mysql
+    restart: always
+    environment:
+        MYSQL_ROOT_PASSWORD: MYSQL_ROOT_PASSWORD
+        MYSQL_DATABASE: MY_DATABASE
+        MYSQL_USER: MYSQL_USER
+        MYSQL_PASSWORD: MYSQL_PASSWORD
+    ports:
+        - 3306:3306
+    networks:
+      my-network:
+        aliases:
+          - db
+          - database
+          - mysql
+
+networks:
+  my-network:

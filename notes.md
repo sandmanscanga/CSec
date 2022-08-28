@@ -31,8 +31,14 @@ I am thinking that Apache and MySQL should be setup on separate containers as it
 
 ---
 
-## Progress
+## Progress Notes
 
 After playing with a custom setup for a while I decided to try the preconfigured DVWA container to see if it makes more sense.
+
+The preconfigured setup works out of the box for the most part but I would prefer to keep this entire application custom just to ensure that it is authentic.  I did find a useful blog online that describes an example of a PHP application that utilizes Apache and MySQL.  I want to check this out just to get some new angles on my own similar issue.  I will be keeping track of the notes for this example [here](./solutions/guided/separate/notes.md)
+
+I played with various techniques to achieve what I needed done which was an Apache service supported by PHP with a configurable version and a MySQL server or local service.  I found a lot of annoyances that would likely cause more time to solve than it would be worth for usability of the project.
+
+The preconfigured DVWA docker container is the easiest and most compatible solution in my opinion.
 
 ---
