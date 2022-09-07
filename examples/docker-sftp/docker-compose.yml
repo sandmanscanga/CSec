@@ -1,22 +1,23 @@
 version: "2"
 
 services:
+
   sftp:
-      container_name: sftp
-      image: atmoz/sftp
-      volumes:
-        - ./volume/share:/home/testing/share
-        - ./volume/hostkeys/ssh_host_ed25519_key:/etc/ssh/ssh_host_ed25519_key
-        - ./volume/hostkeys/ssh_host_rsa_key:/etc/ssh/ssh_host_rsa_key
-        - ./volume/keyring/id_rsa.pub:/home/testing/.ssh/keys/id_rsa.pub:ro
-        - sftp_conf:/etc/sftp
-        - sftp_home:/home
-      networks:
-        stuxnet:
-          ipv4_address: "172.69.0.2"
-      ports:
-          - "22:22"
-      command: testing:${SFTP_RANDOM_PASSWORD}:1001
+    container_name: sftp
+    image: atmoz/sftp
+    volumes:
+      - ./volume/share:/home/${SFTP_USER}/share
+      - ./volume/hostkeys/ssh_host_ed25519_key:/etc/ssh/ssh_host_ed25519_key
+      - ./volume/hostkeys/ssh_host_rsa_key:/etc/ssh/ssh_host_rsa_key
+      - ./volume/keyring/id_rsa.pub:/home/${SFTP_USER}/.ssh/keys/id_rsa.pub:ro
+      - sftp_conf:/etc/sftp
+      - sftp_home:/home
+    networks:
+      stuxnet:
+        ipv4_address: ${SFTP_ADDR}
+    ports:
+        - 22:22
+    command: ${SFTP_USER}:${SFTP_PASS}:1001
 
 volumes:
   sftp_home:
@@ -27,5 +28,5 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.69.0.0/24
-          gateway: 172.69.0.1
+        - subnet: "172.69.0.0/24"
+          gateway: "172.69.0.254"
