@@ -7,86 +7,88 @@ if [ $(whoami) != "root" ]; then
 fi
 
 # Verify current working directory
-if [[ ! -f 'runner.sh' ]] || [[ ! -f 'docker-compose.yml' ]]; then
+if [ ! -f "composer.sh" ] || [ ! -f "docker-compose.yml" ]; then
     echo "Please change into the SFTP docker compose directory!" >&2
     exit 1
 fi
 
 # Environment variables
-export SFTP_USER="tester"
-export SFTP_PASS=$(cat /dev/random | xxd -p | head -c 24)
+export SFTP_USER=tester
+export SFTP_PASS=$(head -c 16 /dev/random | xxd -p)
 
 # Top level variables
-PROJECT_ROOT=$(readlink -f .)
-CLIENT_ROOT=$PROJECT_ROOT/client
-CLIENT_RUNNER=$CLIENT_ROOT/runner.sh
-CLIENT_VOLUME=$CLIENT_ROOT/volume
-SFTP_VOLUME=$PROJECT_ROOT/volume
+PROJECT_ROOT=$(pwd -P)
+INFILE=testing.dat
+OUTFILE=testing_results.dat
 
-# Client shared variables
-CLIENT_SHARE=$CLIENT_VOLUME/share
-CLIENT_TESTFILE=$CLIENT_SHARE/testing_results.dat
+# Volume variables
+ROOT_VOLUME=$PROJECT_ROOT/volume
+SFTP_VOLUME=$ROOT_VOLUME/sftp
+CLIENT_VOLUME=$ROOT_VOLUME/client
+KEYRING_VOLUME=$ROOT_VOLUME/keyring
+
+# SFTP variables
+SFTP_KEYRING=$SFTP_VOLUME/keyring
+SFTP_SHARE=$SFTP_VOLUME/share
+SFTP_TESTFILE=$SFTP_SHARE/$INFILE
+SFTP_HOSTKEYS=$SFTP_VOLUME/hostkeys
 
 # SFTP hostkey variables
-SFTP_HOSTKEYS=$SFTP_VOLUME/hostkeys
 SFTP_RSA_HOSTKEYS=$SFTP_HOSTKEYS/ssh_host_rsa_key
 SFTP_DSA_HOSTKEYS=$SFTP_HOSTKEYS/ssh_host_dsa_key
 SFTP_ECDSA_HOSTKEYS=$SFTP_HOSTKEYS/ssh_host_ecdsa_key
 SFTP_ED25519_HOSTKEYS=$SFTP_HOSTKEYS/ssh_host_ed25519_key
 
-# SFTP keyring variables
-SFTP_KEYRING_ROOT=$SFTP_VOLUME/keyring
-SFTP_KEYRING=$SFTP_KEYRING_ROOT/sftp
-SFTP_RSA_KEYS=$SFTP_KEYRING_ROOT/id_rsa
+# Client variables
+CLIENT_KEYRING=$CLIENT_VOLUME/keyring
+CLIENT_SHARE=$CLIENT_VOLUME/share
+CLIENT_TESTFILE=$CLIENT_SHARE/$OUTFILE
+CLIENT_SCRIPT=$CLIENT_VOLUME/start.sh
 
-# SFTP shared variables
-SFTP_SHARE=$SFTP_VOLUME/share
-SFTP_TESTFILE=$SFTP_SHARE/testing.dat
-
-function cleanup_environment {
-    # Cleanup the local filesystem
-    echo "Cleaning up local volume docker data"
-
-    # Wipe local filesystem volumes
-    rm -rf $SFTP_VOLUME $CLIENT_VOLUME
+function create_client_script {
+cat << EOF > $CLIENT_SCRIPT
+apk add --update --no-cache openssh
+mkdir -p /root/.ssh
+cp /root/keyring/* /root/.ssh
+rm -f /root/keyring/*
+chown root:root -R /root/.ssh
+chmod 600 /root/.ssh/id_rsa
+ssh-keyscan -t rsa sftp >/root/.ssh/known_hosts
+sftp tester@sftp:/share/$INFILE /root/$INFILE
+cp /root/$INFILE /root/share/$OUTFILE
+rm -f $INFILE
+tail -f /dev/null
+EOF
 }
 
 function initialize_environment {
-    # Initialize the local filesystem
-    echo "Initializing the local filesystem"
+    mkdir -p $KEYRING_VOLUME
+    mkdir -p {$SFTP_KEYRING,$SFTP_SHARE,$SFTP_HOSTKEYS}
+    mkdir -p {$CLIENT_KEYRING,$CLIENT_SHARE}
 
-    # Create local filesystem volumes
-    mkdir -p {$CLIENT_SHARE,$SFTP_HOSTKEYS,$SFTP_KEYRING,$SFTP_SHARE}
+    ssh-keygen -N "" -t rsa -b 4096 -f $SFTP_RSA_HOSTKEYS </dev/null
+    ssh-keygen -N "" -t dsa -f $SFTP_DSA_HOSTKEYS </dev/null
+    ssh-keygen -N "" -t ecdsa -b 521 -f $SFTP_ECDSA_HOSTKEYS </dev/null
+    ssh-keygen -N "" -t ed25519 -f $SFTP_ED25519_HOSTKEYS </dev/null
 
-    # Generate SFTP hostkeys
-    ssh-keygen -N '' -t rsa -b 4096 -f $SFTP_RSA_HOSTKEYS </dev/null
-    ssh-keygen -N '' -t dsa -f $SFTP_DSA_HOSTKEYS </dev/null
-    ssh-keygen -N '' -t ecdsa -b 521 -f $SFTP_ECDSA_HOSTKEYS </dev/null
-    ssh-keygen -N '' -t ed25519 -f $SFTP_ED25519_HOSTKEYS </dev/null
+    ssh-keygen -t rsa -b 4096 -f $KEYRING_VOLUME/id_rsa </dev/null
+    cp $KEYRING_VOLUME/*.pub $SFTP_KEYRING
+    cp $KEYRING_VOLUME/* $CLIENT_KEYRING
+    rm -rf $KEYRING_VOLUME
 
-    # Generate RSA keypair, copy public key to keyring
-    ssh-keygen -t rsa -b 4096 -f $SFTP_RSA_KEYS </dev/null
-    cp ${SFTP_RSA_KEYS}.pub $SFTP_KEYRING
-
-    # Copy client runner script and RSA keypair into client volume
-    cp $CLIENT_RUNNER $CLIENT_VOLUME
-    mv $SFTP_RSA_KEYS ${SFTP_RSA_KEYS}.pub $CLIENT_VOLUME
-
-    # Generate a testfile for SFTP container
-    echo 'This is a test!' >$SFTP_TESTFILE
+    echo "This test happened at $(date)" >$SFTP_TESTFILE
+    create_client_script
 }
 
 function execute_start {
-    echo "Executing start commands"
-    cleanup_environment
+    rm -rf $ROOT_VOLUME
     initialize_environment
     docker-compose up -d
 }
 
 function execute_stop {
-    echo "Executing stop commands"
     docker-clean -a
-    cleanup_environment
+    rm -rf $ROOT_VOLUME
 }
 
 function run_command {
@@ -101,7 +103,7 @@ function run_command {
     elif [ "$1" == "down" ]; then
         docker-clean -a
     elif [ "$1" == "clean" ]; then
-        cleanup_environment
+        rm -rf $ROOT_VOLUME
     else
         echo "Please enter a valid command!" >&2
         echo "Run '$0 help' for usage info..."
@@ -117,7 +119,7 @@ function execute_main {
             if [ -z "$2" ]; then
                 # second command is empty
                 execute_start >/dev/null 2>/dev/null
-                sleep 1 && cat $CLIENT_TESTFILE
+                sleep 3 && cat $CLIENT_TESTFILE
                 execute_stop >/dev/null 2>/dev/null
             else
                 run_command $2 >/dev/null 2>/dev/null
@@ -131,7 +133,7 @@ function execute_main {
         if [ -z "$1" ]; then
             # first command is empty
             execute_start
-            sleep 1 && cat $CLIENT_TESTFILE
+            sleep 3 && cat $CLIENT_TESTFILE
             execute_stop
         else
             # first command is not empty

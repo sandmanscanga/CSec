@@ -6,12 +6,12 @@ services:
     container_name: sftp
     image: atmoz/sftp
     volumes:
-      - ./volume/share:/home/${SFTP_USER}/share
-      - ./volume/hostkeys/ssh_host_rsa_key:/etc/ssh/ssh_host_rsa_key
-      - ./volume/hostkeys/ssh_host_dsa_key:/etc/ssh/ssh_host_dsa_key
-      - ./volume/hostkeys/ssh_host_ecdsa_key:/etc/ssh/ssh_host_ecdsa_key
-      - ./volume/hostkeys/ssh_host_ed25519_key:/etc/ssh/ssh_host_ed25519_key
-      - ./volume/keyring/sftp/id_rsa.pub:/home/${SFTP_USER}/.ssh/keys/id_rsa.pub:ro
+      - ./volume/sftp/share:/home/${SFTP_USER}/share
+      - ./volume/sftp/hostkeys/ssh_host_rsa_key:/etc/ssh/ssh_host_rsa_key
+      - ./volume/sftp/hostkeys/ssh_host_dsa_key:/etc/ssh/ssh_host_dsa_key
+      - ./volume/sftp/hostkeys/ssh_host_ecdsa_key:/etc/ssh/ssh_host_ecdsa_key
+      - ./volume/sftp/hostkeys/ssh_host_ed25519_key:/etc/ssh/ssh_host_ed25519_key
+      - ./volume/sftp/keyring/id_rsa.pub:/home/${SFTP_USER}/.ssh/keys/id_rsa.pub:ro
     networks:
       stuxnet:
         aliases:
@@ -22,19 +22,18 @@ services:
 
   client:
     container_name: client
-    build: client
+    image: alpine
     volumes:
-      - ./client/volume/share:/root/share
-      - ./client/volume/runner.sh:/root/runner.sh
-      - ./client/volume/id_rsa:/root/.ssh/id_rsa
-      - ./client/volume/id_rsa.pub:/root/.ssh/id_rsa.pub
+      - ./volume/client/share:/root/share
+      - ./volume/client/keyring:/root/keyring
+      - ./volume/client/start.sh:/root/start.sh
     networks:
       stuxnet:
         aliases:
           - client
     depends_on:
       - sftp
-    command: /bin/sh /root/runner.sh
+    command: /bin/sh /root/start.sh
 
 networks:
   stuxnet:
